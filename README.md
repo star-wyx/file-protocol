@@ -1,19 +1,6 @@
 # EE542 Team Projects - LAB - 04
 
-### Team: Linabell ⭐
 
-### Author:
-
-- [**Boyang Xiao**](https://www.linkedin.com/in/boyang-xiao-40b644225/)
-    - **USC id**:        3326730274
-    - **Email**:        <a href="mailto:boyangxi@usc.edu">boyangxi@usc.edu</a>
-- [**Donghao Zhao**](https://www.linkedin.com/in/donghao-zhao/)
-    - **USC id**:    5601088890
-    - **Email**:    donghaoz@usc.edu
-    - **Phone**:    (213)245-8101
-- [**Yixing Wu**]()
-    - **USC id**:    1656672787
-    - **Email**:    yixingwu@usc.edu
 
 ### Dev Environment:
 
