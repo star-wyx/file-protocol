@@ -1,7 +1,3 @@
-# EE542 Team Projects - LAB - 04
-
-
-
 ### Dev Environment:
 
 - **OS**: Ubuntu 18.04, vyos 1.3
