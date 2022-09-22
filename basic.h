@@ -20,6 +20,7 @@
 #include "map"
 #include "md5.h"
 #include <netdb.h>
+#include <mutex>
 
 #define SERVER_PORT 60001
 #define CLIENT_PORT 60002

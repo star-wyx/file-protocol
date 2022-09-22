@@ -10,12 +10,14 @@ using namespace std;
 int packNum;
 int fileSize;
 ifstream ifs;
-vector<int> unreceived_set;
+std::deque<int> send_deque;
 int send_sfd;
 int ack_sfd;
 sockaddr_in serverInfo;
 sockaddr_in serverACKInfo;
 socklen_t serverInfoLen = sizeof(serverInfo);
+bool endTransmission = false;
+mutex vector_mutex;
 const int packSize = 5000;
 int times = 1;
 
@@ -58,7 +60,7 @@ void initial() {
         printf("ERROR writing to socket");
 
     for (int i = 0; i < packNum; i++) {
-        unreceived_set.push_back(i);
+        send_deque.push_back(i);
     }
 }
 
@@ -71,27 +73,47 @@ char *read(int offset) {
 }
 
 void updateSet() {
-    int non_acked[100];
-    unreceived_set = {};
-    char non_acked_buffer[sizeof(non_acked)];
-    timeval timeout;
-    timeout.tv_sec = 0;
-    timeout.tv_usec = 250000;
-    setsockopt(ack_sfd, SOL_SOCKET, SO_RCVTIMEO, (char *) &timeout, sizeof(timeout));
-    while (true) {
-        int bytes = recvfrom(ack_sfd, non_acked_buffer, sizeof(non_acked_buffer), 0, (struct sockaddr *) &serverACKInfo,
+    int add;
+    char add_buffer[sizeof(add)];
+//    timeval timeout;
+//    timeout.tv_sec = 0;
+//    timeout.tv_usec = 250000;
+//    setsockopt(ack_sfd, SOL_SOCKET, SO_RCVTIMEO, (char *) &timeout, sizeof(timeout));
+    while (!endTransmission) {
+        int bytes = recvfrom(ack_sfd, add_buffer, sizeof(add_buffer), 0, (struct sockaddr *) &serverACKInfo,
                              &serverInfoLen);
-        if (bytes < 0) {
-            break;
+        memcpy(&add, add_buffer, sizeof(add_buffer));
+        if (add == -1) {
+            cout << "endTransmission True" << endl;
+            endTransmission = true;
+        } else {
+            vector_mutex.lock();
+            if (send_deque.empty() || (!send_deque.empty() && add != send_deque.back())) {
+                send_deque.push_back(add);
+            }
+            vector_mutex.unlock();
         }
     }
-    memcpy(non_acked, non_acked_buffer, sizeof(non_acked_buffer));
 
-    for (int i = 0; i < sizeof(non_acked) / sizeof(int); i++) {
-        if (non_acked[i] == -1) {
-            break;
+}
+
+void send_data() {
+    while (!endTransmission) {
+        cout << "remain: " << send_deque.size() << endl;
+        while (!send_deque.empty()) {
+            vector_mutex.lock();
+            int i = send_deque.front();
+            send_deque.pop_front();
+            vector_mutex.unlock();
+            for (int j = 0; j < times; j++) {
+                char *buffer = read(i);
+                string md5 = get_str_md5(buffer, packSize);
+                auto *dto = new DTO<packSize>(md5, i, buffer, packSize);
+                int sent = sendto(send_sfd, (char *) dto, sizeof(DTO<packSize>), 0, (sockaddr *) &serverInfo,
+                                  sizeof(serverInfo));
+                delete dto;
+            }
         }
-        unreceived_set.push_back(non_acked[i]);
     }
 }
 
@@ -108,21 +130,11 @@ int main(int argc, char *argv[]) {
 
     initial();
 
-    while (!unreceived_set.empty()) {
-        cout << "remain: " << unreceived_set.size() << endl;
-        for (int i: unreceived_set) {
-            for (int j = 0; j < times; j++) {
-                char *buffer = read(i);
-                string md5 = get_str_md5(buffer, packSize);
-                auto *dto = new DTO<packSize>(md5, i, buffer, packSize);
-                int sent = sendto(send_sfd, (char *) dto, sizeof(DTO<packSize>), 0, (sockaddr *) &serverInfo,
-                                  sizeof(serverInfo));
-                delete dto;
-            }
-        }
-        updateSet();
-    }
+    thread ack_thread(updateSet);
+    thread send_thread(send_data);
 
+    send_thread.join();
+    ack_thread.join();
 
     ifs.close();
     string md5;

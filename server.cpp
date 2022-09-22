@@ -14,8 +14,10 @@ struct sockaddr_in clientInfo;
 struct sockaddr_in clientACKInfo;
 socklen_t clientInfoLen = sizeof(clientInfo);
 int bytes;
-int largest_no;
-int sent;
+mutex vector_mutex;
+bool endTransmission = false;
+bool needMore = false;
+mutex needMore_mutex;
 const int packSize = 5000;
 string result_file = "result.bin";
 
@@ -62,61 +64,50 @@ void initial() {
 }
 
 void sendACK() {
-    cout << "Total remaining: " << unreceived_set.size() << endl;
-    vector<int> v;
-    int non_acked[100];
-    auto iter = unreceived_set.begin();
-    for (int i = 0; i < sizeof(non_acked) / sizeof(int); i++) {
-        if (iter == unreceived_set.end()) {
-            non_acked[i] = -1;
-        } else {
-            non_acked[i] = *iter;
-//            cout << non_acked[i] << " ";
-            iter++;
+    while (!unreceived_set.empty()) {
+        while (needMore) {
+            cout << "Total remaining: " << unreceived_set.size() << endl;
+            auto iter = unreceived_set.begin();
+            for (int i = 0; i < 100; i++) {
+                if (iter == unreceived_set.end()) {
+                    break;
+                } else {
+                    int next = *iter;
+                    for (int j = 0; j < 5; j++) {
+                        int sent = sendto(ack_sfd, (char *) &next, sizeof(next), 0, (sockaddr *) &clientACKInfo,
+                                          clientInfoLen);
+                    }
+                    iter++;
+                }
+            }
+            needMore_mutex.lock();
+            needMore = false;
+            needMore_mutex.unlock();
         }
     }
-    for (int i = 0; i < 5; i++) {
-        int sent = sendto(ack_sfd, (char *) &non_acked, sizeof(non_acked), 0, (sockaddr *) &clientACKInfo,
+}
+
+void sendEND() {
+    int next = -1;
+    for (int j = 0; j < 5; j++) {
+        int sent = sendto(ack_sfd, (char *) &next, sizeof(next), 0, (sockaddr *) &clientACKInfo,
                           clientInfoLen);
     }
 }
 
-
-int main(int argc, char *argv[]) {
-    ofs.open(result_file, ios::binary);
-    rcv_sfd = buildUDPSocket(SERVER_PORT);
-    ack_sfd = buildUDPSocket(SERVER_ACK_PORT);
-
-    printf("Server UDP socket on Port: %d\n", SERVER_PORT);
-
+void receive() {
     char recv_buffer[sizeof(DTO<packSize>)];
-
-    initial();
-
-    for (int i = 0; i < packNum; ++i) {
-        unreceived_set.insert(i);
-    }
-
-    std::cout << "Transmission start: " << std::endl;
-    timeval beginTime;
-    gettimeofday(&beginTime, NULL);
-
     while (!unreceived_set.empty()) {
         timeval timeout;
-        timeout.tv_sec = 0;
+        timeout.tv_sec = 1;
         timeout.tv_usec = 250000;
         setsockopt(rcv_sfd, SOL_SOCKET, SO_RCVTIMEO, (char *) &timeout, sizeof(timeout));
         bytes = recvfrom(rcv_sfd, recv_buffer, sizeof(recv_buffer), 0, (struct sockaddr *) &clientInfo,
                          &clientInfoLen);
         if (bytes < 0) {
-            timeval beginTime_temp;
-            gettimeofday(&beginTime_temp, NULL);
-            sendACK();
-            timeval endTime_temp;
-            gettimeofday(&endTime_temp, NULL);
-            cout << "SendACK Duration: " << endTime_temp.tv_sec - beginTime_temp.tv_sec << "s "
-                 << endTime_temp.tv_usec - beginTime_temp.tv_usec << "us"
-                 << endl;
+            needMore_mutex.lock();
+            needMore = true;
+            needMore_mutex.unlock();
             continue;
         }
         auto *dto = new DTO<packSize>;
@@ -141,8 +132,34 @@ int main(int argc, char *argv[]) {
 //        cout << " ack: " << dto->offset << "size: " << set.size() << endl;
         delete dto;
     }
+}
 
-    sendACK();
+
+int main(int argc, char *argv[]) {
+    ofs.open(result_file, ios::binary);
+    rcv_sfd = buildUDPSocket(SERVER_PORT);
+    ack_sfd = buildUDPSocket(SERVER_ACK_PORT);
+
+    printf("Server UDP socket on Port: %d\n", SERVER_PORT);
+
+
+    initial();
+
+    for (int i = 0; i < packNum; ++i) {
+        unreceived_set.insert(i);
+    }
+
+    std::cout << "Transmission start: " << std::endl;
+    timeval beginTime;
+    gettimeofday(&beginTime, NULL);
+
+    thread sendACK_thread(sendACK);
+    thread rcv_thread(receive);
+
+    sendACK_thread.join();
+    rcv_thread.join();
+
+    sendEND();
 
     cout << "Transmission end. " << endl;
     timeval endTime;
