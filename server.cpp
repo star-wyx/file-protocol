@@ -67,19 +67,27 @@ void sendACK() {
     while (!unreceived_set.empty()) {
         while (needMore) {
             cout << "Total remaining: " << unreceived_set.size() << endl;
+            int tmp = 0;
             auto iter = unreceived_set.begin();
-            for (int i = 0; i < 100; i++) {
-                if (iter == unreceived_set.end()) {
-                    break;
-                } else {
-                    int next = *iter;
-                    for (int j = 0; j < 5; j++) {
-                        int sent = sendto(ack_sfd, (char *) &next, sizeof(next), 0, (sockaddr *) &clientACKInfo,
-                                          clientInfoLen);
+            while (iter != unreceived_set.end()) {
+                int ack_num[340];
+                char ack_num_buf[sizeof(ack_num)];
+                for (int i = 0; i < sizeof(ack_num) / sizeof(int); i++) {
+                    if (iter == unreceived_set.end()) {
+                        ack_num[i] = -1;
+                    } else {
+                        ack_num[i] = *iter;
+                        iter++;
+                        tmp++;
                     }
-                    iter++;
+                }
+                memcpy(ack_num_buf, (char *) &ack_num, sizeof(ack_num_buf));
+                for (int j = 0; j < 5; j++) {
+                    int sent = sendto(ack_sfd, ack_num_buf, sizeof(ack_num_buf), 0, (sockaddr *) &clientACKInfo,
+                                      clientInfoLen);
                 }
             }
+            cout << "send ACK " << tmp << endl;
             needMore_mutex.lock();
             needMore = false;
             needMore_mutex.unlock();
@@ -99,7 +107,7 @@ void receive() {
     char recv_buffer[sizeof(DTO<packSize>)];
     while (!unreceived_set.empty()) {
         timeval timeout;
-        timeout.tv_sec = 1;
+        timeout.tv_sec = 0;
         timeout.tv_usec = 250000;
         setsockopt(rcv_sfd, SOL_SOCKET, SO_RCVTIMEO, (char *) &timeout, sizeof(timeout));
         bytes = recvfrom(rcv_sfd, recv_buffer, sizeof(recv_buffer), 0, (struct sockaddr *) &clientInfo,

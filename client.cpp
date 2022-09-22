@@ -73,7 +73,7 @@ char *read(int offset) {
 }
 
 void updateSet() {
-    int add;
+    int add[340];
     char add_buffer[sizeof(add)];
 //    timeval timeout;
 //    timeout.tv_sec = 0;
@@ -83,15 +83,20 @@ void updateSet() {
         int bytes = recvfrom(ack_sfd, add_buffer, sizeof(add_buffer), 0, (struct sockaddr *) &serverACKInfo,
                              &serverInfoLen);
         memcpy(&add, add_buffer, sizeof(add_buffer));
-        if (add == -1) {
+        if (add[0] == -1) {
             cout << "endTransmission True" << endl;
             endTransmission = true;
         } else {
-            vector_mutex.lock();
-            if (send_deque.empty() || (!send_deque.empty() && add != send_deque.back())) {
-                send_deque.push_back(add);
+//            vector_mutex.lock();
+            for (int i = 0; i < sizeof(add) / sizeof(int); i++) {
+                if (add[i] == -1) {
+                    break;
+                }
+                if (send_deque.empty() || std::find(send_deque.begin(), send_deque.end(),add[i]) == send_deque.end()) {
+                    send_deque.push_back(add[i]);
+                }
             }
-            vector_mutex.unlock();
+//            vector_mutex.unlock();
         }
     }
 
@@ -99,8 +104,13 @@ void updateSet() {
 
 void send_data() {
     while (!endTransmission) {
-        cout << "remain: " << send_deque.size() << endl;
+        if (!send_deque.empty()) {
+            cout << "remain: " << send_deque.size() << endl;
+        }
         while (!send_deque.empty()) {
+            if (endTransmission) {
+                break;
+            }
             vector_mutex.lock();
             int i = send_deque.front();
             send_deque.pop_front();
