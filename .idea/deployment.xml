@@ -5,14 +5,14 @@
       <paths name="aws_client (50d95721-fb59-43ed-871c-2494a98d7d12)">
         <serverdata>
           <mappings>
-            <mapping local="$PROJECT_DIR$" web="/" />
+            <mapping deploy="/home/ubuntu/test" local="$PROJECT_DIR$" web="/" />
           </mappings>
         </serverdata>
       </paths>
-      <paths name="client (c9605553-8fe6-401e-be62-cf27d8ffa545)">
+      <paths name="aws_server">
         <serverdata>
           <mappings>
-            <mapping local="$PROJECT_DIR$" web="/" />
+            <mapping deploy="/home/ubuntu/test" local="$PROJECT_DIR$" web="/" />
           </mappings>
         </serverdata>
       </paths>
