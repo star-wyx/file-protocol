@@ -16,8 +16,6 @@ socklen_t clientInfoLen = sizeof(clientInfo);
 int bytes;
 mutex vector_mutex;
 bool endTransmission = false;
-bool needMore = false;
-mutex needMore_mutex;
 const int packSize = 5000;
 string result_file = "result.bin";
 
@@ -64,33 +62,28 @@ void initial() {
 }
 
 void sendACK() {
+    sleep(48);
     while (!unreceived_set.empty()) {
-        while (needMore) {
-            cout << "Total remaining: " << unreceived_set.size() << endl;
-            int tmp = 0;
-            auto iter = unreceived_set.begin();
-            while (iter != unreceived_set.end()) {
-                int ack_num[340];
-                char ack_num_buf[sizeof(ack_num)];
-                for (int i = 0; i < sizeof(ack_num) / sizeof(int); i++) {
-                    if (iter == unreceived_set.end()) {
-                        ack_num[i] = -1;
-                    } else {
-                        ack_num[i] = *iter;
-                        iter++;
-                        tmp++;
-                    }
-                }
-                memcpy(ack_num_buf, (char *) &ack_num, sizeof(ack_num_buf));
-                for (int j = 0; j < 5; j++) {
-                    int sent = sendto(ack_sfd, ack_num_buf, sizeof(ack_num_buf), 0, (sockaddr *) &clientACKInfo,
-                                      clientInfoLen);
+        cout << "Total remaining: " << unreceived_set.size() << endl;
+        int tmp = 0;
+        auto iter = unreceived_set.begin();
+        while (iter != unreceived_set.end()) {
+            int ack_num[340];
+            char ack_num_buf[sizeof(ack_num)];
+            for (int i = 0; i < sizeof(ack_num) / sizeof(int); i++) {
+                if (iter == unreceived_set.end()) {
+                    ack_num[i] = -1;
+                } else {
+                    ack_num[i] = *iter;
+                    iter++;
+                    tmp++;
                 }
             }
-            cout << "send ACK " << tmp << endl;
-            needMore_mutex.lock();
-            needMore = false;
-            needMore_mutex.unlock();
+            memcpy(ack_num_buf, (char *) &ack_num, sizeof(ack_num_buf));
+            for (int j = 0; j < 5; j++) {
+                int sent = sendto(ack_sfd, ack_num_buf, sizeof(ack_num_buf), 0, (sockaddr *) &clientACKInfo,
+                                  clientInfoLen);
+            }
         }
     }
 }
@@ -106,18 +99,8 @@ void sendEND() {
 void receive() {
     char recv_buffer[sizeof(DTO<packSize>)];
     while (!unreceived_set.empty()) {
-        timeval timeout;
-        timeout.tv_sec = 0;
-        timeout.tv_usec = 250000;
-        setsockopt(rcv_sfd, SOL_SOCKET, SO_RCVTIMEO, (char *) &timeout, sizeof(timeout));
         bytes = recvfrom(rcv_sfd, recv_buffer, sizeof(recv_buffer), 0, (struct sockaddr *) &clientInfo,
                          &clientInfoLen);
-        if (bytes < 0) {
-            needMore_mutex.lock();
-            needMore = true;
-            needMore_mutex.unlock();
-            continue;
-        }
         auto *dto = new DTO<packSize>;
         memcpy(dto, recv_buffer, sizeof(DTO<packSize>));
         memset(recv_buffer, 0, sizeof(recv_buffer));

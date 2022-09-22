@@ -75,10 +75,6 @@ char *read(int offset) {
 void updateSet() {
     int add[340];
     char add_buffer[sizeof(add)];
-//    timeval timeout;
-//    timeout.tv_sec = 0;
-//    timeout.tv_usec = 250000;
-//    setsockopt(ack_sfd, SOL_SOCKET, SO_RCVTIMEO, (char *) &timeout, sizeof(timeout));
     while (!endTransmission) {
         int bytes = recvfrom(ack_sfd, add_buffer, sizeof(add_buffer), 0, (struct sockaddr *) &serverACKInfo,
                              &serverInfoLen);
@@ -87,7 +83,6 @@ void updateSet() {
             cout << "endTransmission True" << endl;
             endTransmission = true;
         } else {
-//            vector_mutex.lock();
             for (int i = 0; i < sizeof(add) / sizeof(int); i++) {
                 if (add[i] == -1) {
                     break;
@@ -96,7 +91,6 @@ void updateSet() {
                     send_deque.push_back(add[i]);
                 }
             }
-//            vector_mutex.unlock();
         }
     }
 
