@@ -18,6 +18,8 @@ sockaddr_in serverACKInfo;
 socklen_t serverInfoLen = sizeof(serverInfo);
 bool endTransmission = false;
 mutex vector_mutex;
+int fd;
+char *file_buff;
 const int packSize = 5000;
 int times = 1;
 
@@ -37,6 +39,16 @@ int buildUDPSocket(uint16_t port) {
 }
 
 void initial() {
+
+    int size;
+    struct stat s;
+
+    /* Get the size of the file. */
+    int status = fstat(fd, &s);
+    size = s.st_size;
+
+    file_buff = (char *) mmap(nullptr, size, PROT_READ, MAP_PRIVATE, fd, 0);
+
     if (!ifs.good()) {
         cout << "fail to open file" << endl;
         exit(1);
@@ -66,9 +78,15 @@ void initial() {
 
 char *read(int offset) {
     char *buffer = (char *) malloc(packSize * sizeof(char));
-    ifs.clear();
-    ifs.seekg(offset * packSize, ios::beg);
-    ifs.read(buffer, packSize);
+//    timeval begin;
+//    gettimeofday(&begin, NULL);
+//    ifs.clear();0
+//    ifs.seekg(offset * packSize, ios::beg);
+//    ifs.read(buffer, packSize);
+    memcpy(buffer, &file_buff[offset * packSize], packSize);
+//    timeval end;
+//    gettimeofday(&end, NULL);
+//    cout << "read delay: " << (end.tv_sec - begin.tv_sec) * 1000000 + (end.tv_usec - begin.tv_usec) << endl;
     return buffer;
 }
 
@@ -87,7 +105,7 @@ void updateSet() {
                 if (add[i] == -1) {
                     break;
                 }
-                if (send_deque.empty() || std::find(send_deque.begin(), send_deque.end(),add[i]) == send_deque.end()) {
+                if (send_deque.empty() || std::find(send_deque.begin(), send_deque.end(), add[i]) == send_deque.end()) {
                     send_deque.push_back(add[i]);
                 }
             }
@@ -116,7 +134,9 @@ void send_data() {
                 int sent = sendto(send_sfd, (char *) dto, sizeof(DTO<packSize>), 0, (sockaddr *) &serverInfo,
                                   sizeof(serverInfo));
                 delete dto;
+                free(buffer);
             }
+            usleep(50);
         }
     }
 }
@@ -124,6 +144,7 @@ void send_data() {
 int main(int argc, char *argv[]) {
     const char *SERVER_IP = argv[1];
     char *file = argv[2];
+    fd = open(argv[2], O_RDONLY);
 
     ifs.open(file, ios::binary | ios::in);
     send_sfd = buildUDPSocket(CLIENT_PORT);

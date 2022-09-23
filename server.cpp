@@ -62,7 +62,7 @@ void initial() {
 }
 
 void sendACK() {
-    sleep(48);
+    sleep(100);
     while (!unreceived_set.empty()) {
         cout << "Total remaining: " << unreceived_set.size() << endl;
         int tmp = 0;
@@ -80,7 +80,7 @@ void sendACK() {
                 }
             }
             memcpy(ack_num_buf, (char *) &ack_num, sizeof(ack_num_buf));
-            for (int j = 0; j < 5; j++) {
+            for (int j = 0; j < 1; j++) {
                 int sent = sendto(ack_sfd, ack_num_buf, sizeof(ack_num_buf), 0, (sockaddr *) &clientACKInfo,
                                   clientInfoLen);
             }
