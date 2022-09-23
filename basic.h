@@ -21,6 +21,11 @@
 #include "md5.h"
 #include <netdb.h>
 #include <mutex>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/io.h>
+#include <sys/mman.h>
 
 #define SERVER_PORT 60001
 #define CLIENT_PORT 60002
