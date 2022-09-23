@@ -15,6 +15,8 @@ struct sockaddr_in clientACKInfo;
 socklen_t clientInfoLen = sizeof(clientInfo);
 int bytes;
 mutex vector_mutex;
+mutex needMore_mutex;
+bool needMore = false;
 bool endTransmission = false;
 const int packSize = 5000;
 string result_file = "result.bin";
@@ -62,29 +64,37 @@ void initial() {
 }
 
 void sendACK() {
-    sleep(100);
     while (!unreceived_set.empty()) {
-        cout << "Total remaining: " << unreceived_set.size() << endl;
-        int tmp = 0;
-        auto iter = unreceived_set.begin();
-        while (iter != unreceived_set.end()) {
-            int ack_num[340];
-            char ack_num_buf[sizeof(ack_num)];
-            for (int i = 0; i < sizeof(ack_num) / sizeof(int); i++) {
-                if (iter == unreceived_set.end()) {
-                    ack_num[i] = -1;
-                } else {
-                    ack_num[i] = *iter;
-                    iter++;
-                    tmp++;
+        cout << "waiting for signal" << endl;
+        while (needMore) {
+            if (unreceived_set.empty()) {
+                return;
+            }
+            cout << "Total remaining: " << unreceived_set.size() << endl;
+            int tmp = 0;
+            auto iter = unreceived_set.begin();
+            while (iter != unreceived_set.end()) {
+                int ack_num[340];
+                char ack_num_buf[sizeof(ack_num)];
+                for (int i = 0; i < sizeof(ack_num) / sizeof(int); i++) {
+                    if (iter == unreceived_set.end()) {
+                        ack_num[i] = -1;
+                    } else {
+                        ack_num[i] = *iter;
+                        iter++;
+                        tmp++;
+                    }
+                }
+                memcpy(ack_num_buf, (char *) &ack_num, sizeof(ack_num_buf));
+                for (int j = 0; j < 1; j++) {
+                    int sent = sendto(ack_sfd, ack_num_buf, sizeof(ack_num_buf), 0, (sockaddr *) &clientACKInfo,
+                                      clientInfoLen);
                 }
             }
-            memcpy(ack_num_buf, (char *) &ack_num, sizeof(ack_num_buf));
-            for (int j = 0; j < 1; j++) {
-                int sent = sendto(ack_sfd, ack_num_buf, sizeof(ack_num_buf), 0, (sockaddr *) &clientACKInfo,
-                                  clientInfoLen);
-            }
         }
+        needMore_mutex.lock();
+        needMore = false;
+        needMore_mutex.unlock();
     }
 }
 
@@ -104,7 +114,15 @@ void receive() {
         auto *dto = new DTO<packSize>;
         memcpy(dto, recv_buffer, sizeof(DTO<packSize>));
         memset(recv_buffer, 0, sizeof(recv_buffer));
-        if (dto->offset == -1 or unreceived_set.count(dto->offset) == 0) {
+        if (dto->offset == -1) {
+            needMore_mutex.lock();
+            if (!needMore) {
+                needMore = true;
+            }
+            needMore_mutex.unlock();
+            continue;
+        }
+        if (unreceived_set.count(dto->offset) == 0) {
             continue;
         }
         string md5 = get_str_md5(dto->data, packSize);

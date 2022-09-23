@@ -21,7 +21,7 @@ mutex vector_mutex;
 int fd;
 char *file_buff;
 const int packSize = 5000;
-int times = 1;
+int times = 3;
 
 int buildUDPSocket(uint16_t port) {
     char ip[] = "127.0.0.1";
@@ -119,6 +119,8 @@ void send_data() {
         if (!send_deque.empty()) {
             cout << "remain: " << send_deque.size() << endl;
         }
+        int deque_size = send_deque.size();
+        int tmp = 0;
         while (!send_deque.empty()) {
             if (endTransmission) {
                 break;
@@ -127,17 +129,27 @@ void send_data() {
             int i = send_deque.front();
             send_deque.pop_front();
             vector_mutex.unlock();
+            tmp += 1;
             for (int j = 0; j < times; j++) {
                 char *buffer = read(i);
                 string md5 = get_str_md5(buffer, packSize);
                 auto *dto = new DTO<packSize>(md5, i, buffer, packSize);
                 int sent = sendto(send_sfd, (char *) dto, sizeof(DTO<packSize>), 0, (sockaddr *) &serverInfo,
                                   sizeof(serverInfo));
+
+                cout << " " << dto->offset << endl;
+
                 delete dto;
                 free(buffer);
             }
             usleep(50);
         }
+        auto *dto = new DTO<packSize>();
+        memset(dto, 0, sizeof(DTO<packSize>));
+        dto->offset = -1;
+        int sent = sendto(send_sfd, (char *) dto, sizeof(DTO<packSize>), 0, (sockaddr *) &serverInfo,
+                          sizeof(serverInfo));
+        delete dto;
     }
 }
 
