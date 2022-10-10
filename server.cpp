@@ -65,7 +65,7 @@ void initial() {
 
 void sendACK() {
     while (!unreceived_set.empty()) {
-        cout << "waiting for signal" << endl;
+//        cout << "waiting for signal" << endl;
         while (needMore) {
             if (unreceived_set.empty()) {
                 return;
@@ -108,13 +108,14 @@ void sendEND() {
 
 void receive() {
     char recv_buffer[sizeof(DTO<packSize>)];
+    DTO<packSize> dto;
     while (!unreceived_set.empty()) {
         bytes = recvfrom(rcv_sfd, recv_buffer, sizeof(recv_buffer), 0, (struct sockaddr *) &clientInfo,
                          &clientInfoLen);
-        auto *dto = new DTO<packSize>;
-        memcpy(dto, recv_buffer, sizeof(DTO<packSize>));
+//        auto *dto = new DTO<packSize>;
+        memcpy(&dto, recv_buffer, sizeof(DTO<packSize>));
         memset(recv_buffer, 0, sizeof(recv_buffer));
-        if (dto->offset == -1) {
+        if (dto.offset == -1) {
             needMore_mutex.lock();
             if (!needMore) {
                 needMore = true;
@@ -122,25 +123,25 @@ void receive() {
             needMore_mutex.unlock();
             continue;
         }
-        if (unreceived_set.count(dto->offset) == 0) {
+        if (unreceived_set.count(dto.offset) == 0) {
             continue;
         }
-        string md5 = get_str_md5(dto->data, packSize);
+        string md5 = get_str_md5(dto.data, packSize);
 //        cout << "md5: " << md5;
-        if (strcmp(md5.c_str(), dto->md5) != 0) {
+        if (strcmp(md5.c_str(), dto.md5) != 0) {
             std::cout << "wrong md5" << std::endl;
             continue;
         }
-        ofs.seekp(dto->offset * packSize, ios::beg);
-        if (dto->offset != packNum - 1) {
-            ofs.write(dto->data, packSize);
+        ofs.seekp(dto.offset * packSize, ios::beg);
+        if (dto.offset != packNum - 1) {
+            ofs.write(dto.data, packSize);
         } else {
-            ofs.write(dto->data, fileSize - packSize * (packNum - 1));
+            ofs.write(dto.data, fileSize - packSize * (packNum - 1));
         }
-        unreceived_set.erase(dto->offset);
+        unreceived_set.erase(dto.offset);
 //        cout << " ack: " << dto->offset << "size: " << set.size() << endl;
-        delete dto;
     }
+//        delete dto;
 }
 
 
